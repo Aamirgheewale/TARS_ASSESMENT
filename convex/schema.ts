@@ -15,6 +15,7 @@ export default defineSchema({
         participants: v.array(v.id("users")),
         isGroup: v.boolean(),
         name: v.optional(v.string()),
+        createdBy: v.string(),
         lastMessageId: v.optional(v.id("messages")),
     }),
 
@@ -42,4 +43,13 @@ export default defineSchema({
         .index("by_conversationId", ["conversationId"])
         .index("by_expiresAt", ["expiresAt"])
         .index("by_conversationId_userId", ["conversationId", "userId"]),
+
+    reactions: defineTable({
+        messageId: v.id("messages"),
+        userId: v.string(), // Clerk Subject ID
+        emoji: v.string(),
+        createdAt: v.number(),
+    })
+        .index("by_message", ["messageId"])
+        .index("by_message_user", ["messageId", "userId"]),
 });
