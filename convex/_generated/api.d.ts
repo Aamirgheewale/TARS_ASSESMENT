@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as conversations from "../conversations.js";
 import type * as http from "../http.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as messages from "../messages.js";
 import type * as reactions from "../reactions.js";
 import type * as typing from "../typing.js";
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   conversations: typeof conversations;
   http: typeof http;
+  "lib/auth": typeof lib_auth;
   messages: typeof messages;
   reactions: typeof reactions;
   typing: typeof typing;
