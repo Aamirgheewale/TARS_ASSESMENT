@@ -8,7 +8,6 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Search, Users, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUser } from "@clerk/nextjs";
 
 import { Doc } from "../convex/_generated/dataModel";
 
@@ -23,10 +22,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onSelectUser, onSelectConversation, selectedConversationId }: SidebarProps) {
-    const { isLoaded, isSignedIn, user } = useUser();
-    const users = useQuery(api.users.getAllUsers,
-        isLoaded && isSignedIn ? { clerkId: user!.id } : "skip"
-    );
+    const users = useQuery(api.users.getAllUsers);
     const conversations = useQuery(api.conversations.getConversations);
 
     const [searchQuery, setSearchQuery] = useState("");
