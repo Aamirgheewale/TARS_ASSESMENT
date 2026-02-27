@@ -1,23 +1,19 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireUser } from "./lib/auth";
 
 export const resetUnreadCount = mutation({
     args: {
         conversationId: v.id("conversations"),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            throw new Error("Unauthorized");
-        }
+        const user = await requireUser(ctx);
 
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
+        const conversation = await ctx.db.get(args.conversationId);
+        if (!conversation) throw new Error("Conversation not found");
 
-        if (!user) {
-            throw new Error("User not found");
+        if (!conversation.participants.includes(user._id)) {
+            throw new Error("Access denied");
         }
 
         const existing = await ctx.db
@@ -36,19 +32,7 @@ export const resetUnreadCount = mutation({
 export const getUnreadCounts = query({
     args: {},
     handler: async (ctx) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            return [];
-        }
-
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!user) {
-            return [];
-        }
+        const user = await requireUser(ctx);
 
         return await ctx.db
             .query("unread")
