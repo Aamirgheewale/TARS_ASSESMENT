@@ -76,3 +76,34 @@ export const getMessages = query({
             .collect();
     },
 });
+export const deleteMessage = mutation({
+    args: {
+        messageId: v.id("messages"),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return false;
+        }
+
+        const message = await ctx.db.get(args.messageId);
+        if (!message) {
+            return false;
+        }
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+
+        if (!user || message.senderId !== user._id) {
+            return false;
+        }
+
+        await ctx.db.patch(args.messageId, {
+            deleted: true,
+        });
+
+        return true;
+    },
+});
