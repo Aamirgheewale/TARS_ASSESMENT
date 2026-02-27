@@ -37,7 +37,7 @@ export function SidebarWrapper() {
 
     return (
         <div className={cn(
-            "h-full w-full md:w-80 border-r bg-background shrink-0",
+            "h-full w-full md:w-80 bg-background/70 backdrop-blur-xl border-r border-border/50 shadow-lg shrink-0 z-10",
             isConversationOpen ? "hidden md:block" : "block"
         )}>
             <Sidebar
