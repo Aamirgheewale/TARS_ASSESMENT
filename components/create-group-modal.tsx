@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { useUser } from "@clerk/nextjs";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -20,11 +19,8 @@ interface CreateGroupModalProps {
 }
 
 export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
-    const { user: currentUser, isLoaded } = useUser();
     const router = useRouter();
-    const users = useQuery(api.users.getAllUsers,
-        isLoaded && currentUser ? { clerkId: currentUser.id } : "skip"
-    );
+    const users = useQuery(api.users.getAllUsers);
     const createGroup = useMutation(api.conversations.createGroupConversation);
 
     const [groupName, setGroupName] = useState("");
@@ -42,7 +38,7 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     };
 
     const handleCreate = async () => {
-        if (!groupName.trim() || selectedIds.length < 1 || !currentUser) return;
+        if (!groupName.trim() || selectedIds.length < 1) return;
 
         setIsCreating(true);
         try {
