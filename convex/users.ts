@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireUser } from "./lib/auth";
 
 export const syncUser = mutation({
     args: {
@@ -40,41 +41,26 @@ export const syncUser = mutation({
 export const getUsers = query({
     args: {},
     handler: async (ctx) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            return null;
-        }
-
-        const currentUser = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!currentUser) {
-            return [];
-        }
+        const currentUser = await requireUser(ctx);
 
         const users = await ctx.db
             .query("users")
-            .filter((q) => q.neq(q.field("clerkId"), identity.subject))
+            .filter((q) => q.neq(q.field("clerkId"), currentUser.clerkId))
             .collect();
 
-        // Fetch all 1-on-1 conversations for the current user
-        const conversations = await ctx.db
-            .query("conversations")
-            .filter((q) => q.eq(q.field("isGroup"), false))
-            .collect();
-
-        // Filter those where current user is a participant
-        const myConversations = conversations.filter((c) =>
-            c.participants.includes(currentUser._id)
-        );
-
-        // Fetch all unread counts for the current user
         const unreadCounts = await ctx.db
             .query("unread")
             .withIndex("by_user_conversation", (q) => q.eq("userId", currentUser._id))
             .collect();
+
+        // Fetch conversations the user is a part of
+        const allConversations = await ctx.db
+            .query("conversations")
+            .collect();
+
+        const myConversations = allConversations.filter(c =>
+            !c.isGroup && c.participants.includes(currentUser._id)
+        );
 
         return users.map((user) => {
             const conversation = myConversations.find((c) =>
@@ -98,19 +84,7 @@ export const updateStatus = mutation({
         online: v.boolean(),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            return;
-        }
-
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!user) {
-            throw new Error("User not found");
-        }
+        const user = await requireUser(ctx);
 
         await ctx.db.patch(user._id, {
             online: args.online,
@@ -118,39 +92,29 @@ export const updateStatus = mutation({
         });
     },
 });
+
 export const getAllUsers = query({
-    args: {
-        clerkId: v.string(),
-    },
-    handler: async (ctx, args) => {
-        if (!args.clerkId) return [];
-
-        const currentUser = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
-            .unique();
-
-        if (!currentUser) return [];
+    args: {},
+    handler: async (ctx) => {
+        const currentUser = await requireUser(ctx);
 
         const users = await ctx.db
             .query("users")
-            .filter((q) => q.neq(q.field("clerkId"), args.clerkId))
+            .filter((q) => q.neq(q.field("clerkId"), currentUser.clerkId))
             .collect();
-
-        // Fetch all 1-on-1 conversations for the current user
-        const conversations = await ctx.db
-            .query("conversations")
-            .filter((q) => q.eq(q.field("isGroup"), false))
-            .collect();
-
-        const myConversations = conversations.filter((c) =>
-            c.participants.includes(currentUser._id)
-        );
 
         const unreadCounts = await ctx.db
             .query("unread")
             .withIndex("by_user_conversation", (q) => q.eq("userId", currentUser._id))
             .collect();
+
+        const conversations = await ctx.db
+            .query("conversations")
+            .collect();
+
+        const myConversations = conversations.filter((c) =>
+            !c.isGroup && c.participants.includes(currentUser._id)
+        );
 
         return users.map((user) => {
             const conversation = myConversations.find((c) =>
@@ -171,14 +135,10 @@ export const getAllUsers = query({
 export const getMe = query({
     args: {},
     handler: async (ctx) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
+        try {
+            return await requireUser(ctx);
+        } catch {
             return null;
         }
-
-        return await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
     },
 });
