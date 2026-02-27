@@ -66,14 +66,21 @@ export const getTypingIndicator = query({
             .collect();
 
         const now = Date.now();
-        // Return the name of the first user that fits (excluding current user)
-        const typingUserRecord = typingRecords.find(
+        const activeTypers = typingRecords.filter(
             (t) => t.userId !== currentUser._id && t.expiresAt > now
         );
 
-        if (!typingUserRecord) return null;
+        if (activeTypers.length === 0) return null;
 
-        const user = await ctx.db.get(typingUserRecord.userId);
-        return user ? user.name : null;
+        const users = await Promise.all(
+            activeTypers.map((t) => ctx.db.get(t.userId))
+        );
+
+        const names = users.filter((u) => !!u).map((u) => u!.name);
+
+        if (names.length === 0) return null;
+        if (names.length === 1) return names[0];
+        if (names.length === 2) return `${names[0]} and ${names[1]}`;
+        return `${names[0]}, ${names[1]} and ${names.length - 2} more`;
     },
 });
