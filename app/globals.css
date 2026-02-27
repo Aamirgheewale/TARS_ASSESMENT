@@ -6,6 +6,13 @@
   .text-balance {
     text-wrap: balance;
   }
+  .bg-glass {
+    @apply bg-background/70 backdrop-blur-xl border border-border/50 shadow-lg;
+  }
+}
+
+body {
+  @apply bg-gradient-to-br from-background via-background to-muted/30 min-h-screen antialiased;
 }
 
 
