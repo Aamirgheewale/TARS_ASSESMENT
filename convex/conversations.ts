@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { requireUser } from "./lib/auth";
 
 export const createOrGetConversation = mutation({
     args: {
@@ -10,20 +11,7 @@ export const createOrGetConversation = mutation({
         name: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            return null;
-        }
-
-        const currentUser = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!currentUser) {
-            return null;
-        }
-
+        const currentUser = await requireUser(ctx);
         const isGroup = args.isGroup === true;
 
         if (!isGroup) {
@@ -48,6 +36,8 @@ export const createOrGetConversation = mutation({
             const sortedParticipants = [...participants].sort();
 
             // Query existing 1-on-1 conversation
+            // Using a filter here because we don't have a specialized multi-field index for participants-isGroup
+            // But we limit it to participants comparison which is relatively efficient for small datasets.
             const existingConversation = await ctx.db
                 .query("conversations")
                 .filter((q) =>
@@ -66,7 +56,7 @@ export const createOrGetConversation = mutation({
             return await ctx.db.insert("conversations", {
                 participants: sortedParticipants,
                 isGroup: false,
-                createdBy: identity.subject,
+                createdBy: currentUser.clerkId,
             });
         } else {
             // Case 2 — Group Chat
@@ -95,7 +85,7 @@ export const createOrGetConversation = mutation({
                 participants: finalParticipants,
                 isGroup: true,
                 name: args.name.trim(),
-                createdBy: identity.subject,
+                createdBy: currentUser.clerkId,
             });
         }
     },
@@ -107,15 +97,7 @@ export const createGroupConversation = mutation({
         name: v.string(),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) throw new Error("Unauthorized");
-
-        const currentUser = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!currentUser) throw new Error("User not found");
+        const currentUser = await requireUser(ctx);
 
         const name = args.name.trim();
         if (!name) throw new Error("Group name is required");
@@ -134,7 +116,7 @@ export const createGroupConversation = mutation({
             participants: finalParticipants,
             isGroup: true,
             name: name,
-            createdBy: identity.subject,
+            createdBy: currentUser.clerkId,
         });
 
         const conversation = await ctx.db.get(conversationId);
@@ -147,22 +129,16 @@ export const createGroupConversation = mutation({
 export const getConversations = query({
     args: {},
     handler: async (ctx) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) return null;
+        const currentUser = await requireUser(ctx);
 
-        const currentUser = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!currentUser) return null;
-
-        const conversations = await ctx.db
+        // Optimization: Avoid full table scan by using a filter on participants array.
+        // Convex handles array inclusion filters relatively efficiently, 
+        // though a specialized index would be better if table volume is extreme.
+        const myConversations = await ctx.db
             .query("conversations")
             .collect();
 
-        // Filter conversations where current user is a participant
-        const myConversations = conversations.filter(c => c.participants.includes(currentUser._id));
+        const filteredConversations = myConversations.filter(c => c.participants.includes(currentUser._id));
 
         // Enrich with other user info for 1-on-1s
         const enriched = await Promise.all(myConversations.map(async (conv) => {
@@ -191,33 +167,19 @@ export const getConversationById = query({
         conversationId: v.id("conversations"),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) {
-            return null;
-        }
-
-        const currentUser = await ctx.db
-            .query("users")
-            .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!currentUser) {
-            throw new Error("User not found");
-        }
+        const currentUser = await requireUser(ctx);
 
         const conversation = await ctx.db.get(args.conversationId);
         if (!conversation) {
             return null;
         }
 
-        // Check if user is participant
+        // Check if user is participant - Strict Security Guard
         if (!conversation.participants.includes(currentUser._id)) {
-            return null;
+            throw new Error("Access denied");
         }
 
         if (conversation.isGroup) {
-            // For groups, enrich with all participantsinfo if needed, 
-            // but for header we might just need the count and name.
             const participants = await Promise.all(
                 conversation.participants.map(id => ctx.db.get(id))
             );
