@@ -22,11 +22,17 @@ export function SidebarWrapper() {
             const conversationId = await createOrGetConversation({
                 otherUserId: user._id,
             });
-            console.log("SidebarWrapper - Got Conversation ID:", conversationId);
-            router.push(`/${conversationId}`);
+            console.log("SidebarWrapper - Resolved Conversation ID:", conversationId);
+            if (conversationId) {
+                router.push(`/${conversationId}`);
+            }
         } catch (error) {
-            console.error("Failed to create or get conversation:", error);
+            console.error("SidebarWrapper - Failed to create or get conversation:", error);
         }
+    };
+
+    const handleSelectConversation = (conversationId: string) => {
+        router.push(`/${conversationId}`);
     };
 
     return (
@@ -36,7 +42,8 @@ export function SidebarWrapper() {
         )}>
             <Sidebar
                 onSelectUser={handleSelectUser}
-                selectedUserId={params.conversationId as string}
+                onSelectConversation={handleSelectConversation}
+                selectedConversationId={params.conversationId as string}
             />
         </div>
     );
