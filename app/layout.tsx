@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
-import { Header } from "@/components/header";
+import { Header } from "../components/header";
 import { SidebarWrapper } from "@/components/sidebar-wrapper";
 import { ResponsiveMain } from "@/components/responsive-main";
 import { AuthGate } from "@/components/auth-gate";
